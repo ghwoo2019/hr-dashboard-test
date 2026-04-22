@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+'use client'; // ✅ [수정 1] Next.js App Router에서 브라우저 API/훅 사용 시 필수 선언
+
+import React, { useState, useEffect, useMemo } from 'react'; // ✅ useMemo 추가
 import { 
   Users, 
   UserPlus, 
@@ -34,16 +36,11 @@ import {
 // --- Configuration & Constants ---
 const getSafeConfig = () => {
   try {
-    // 1. window 객체가 존재하는지 확인 (Node.js 빌드 환경 대비)
     if (typeof window !== 'undefined') {
-      // 2. Canvas 전용 전역 변수가 있는지 안전하게 확인
       const config = (window).__firebase_config;
       if (config) return JSON.parse(config);
     }
-  } catch (e) {
-    // 빌드 시점에는 경고를 무시합니다.
-  }
-  // 3. 대체값 (빌드 통과용 더미 데이터)
+  } catch (e) {}
   return { 
     apiKey: "dummy", 
     authDomain: "dummy.firebaseapp.com", 
@@ -86,33 +83,49 @@ const RECENT_CHANGES = [
 ];
 
 // --- Components ---
-const BackgroundEffect = () => (
-  <div className="fixed inset-0 z-[-1] overflow-hidden bg-[#050b18]">
-    <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[#7000ff]/20 blur-[120px] rounded-full animate-pulse" />
-    <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-[#00f2ff]/10 blur-[120px] rounded-full animate-pulse" style={{ animationDelay: '2s' }} />
-    <div className="absolute inset-0 opacity-30">
-      {[...Array(50)].map((_, i) => (
-        <div 
-          key={i}
-          className="absolute bg-white rounded-full"
-          style={{
-            width: Math.random() * 3 + 'px',
-            height: Math.random() * 3 + 'px',
-            top: Math.random() * 100 + '%',
-            left: Math.random() * 100 + '%',
-            animation: `twinkle ${Math.random() * 5 + 3}s infinite linear`
-          }}
-        />
-      ))}
+
+// ✅ [수정 2] Math.random()을 렌더링 중 직접 호출하면 SSR/CSR 값이 달라 하이드레이션 에러 발생
+// useMemo로 클라이언트 마운트 시 한 번만 생성하도록 수정
+const BackgroundEffect = () => {
+  const stars = useMemo(() => 
+    [...Array(50)].map((_, i) => ({
+      id: i,
+      width: Math.random() * 3,
+      height: Math.random() * 3,
+      top: Math.random() * 100,
+      left: Math.random() * 100,
+      duration: Math.random() * 5 + 3,
+    })),
+  []);
+
+  return (
+    <div className="fixed inset-0 z-[-1] overflow-hidden bg-[#050b18]">
+      <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[#7000ff]/20 blur-[120px] rounded-full animate-pulse" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-[#00f2ff]/10 blur-[120px] rounded-full animate-pulse" style={{ animationDelay: '2s' }} />
+      <div className="absolute inset-0 opacity-30">
+        {stars.map((star) => (
+          <div 
+            key={star.id}
+            className="absolute bg-white rounded-full"
+            style={{
+              width: star.width + 'px',
+              height: star.height + 'px',
+              top: star.top + '%',
+              left: star.left + '%',
+              animation: `twinkle ${star.duration}s infinite linear`
+            }}
+          />
+        ))}
+      </div>
+      <style>{`
+        @keyframes twinkle {
+          0%, 100% { opacity: 0.3; transform: scale(1); }
+          50% { opacity: 1; transform: scale(1.2); }
+        }
+      `}</style>
     </div>
-    <style>{`
-      @keyframes twinkle {
-        0%, 100% { opacity: 0.3; transform: scale(1); }
-        50% { opacity: 1; transform: scale(1.2); }
-      }
-    `}</style>
-  </div>
-);
+  );
+};
 
 const GlassCard = ({ children, className = "", title, icon: Icon, delay = 0 }) => (
   <motion.div
