@@ -32,34 +32,31 @@ import {
 } from 'firebase/auth';
 
 // --- Configuration & Constants ---
-// 외부 배포 환경에서 ReferenceError를 방지하기 위해 window 객체 여부를 먼저 확인합니다.
 const getSafeConfig = () => {
   try {
-    // window 객체가 있고 그 안에 __firebase_config가 정의되어 있는지 확인
-    if (typeof window !== 'undefined' && window.__firebase_config) {
-      return JSON.parse(window.__firebase_config);
+    // 1. window 객체가 존재하는지 확인 (Node.js 빌드 환경 대비)
+    if (typeof window !== 'undefined') {
+      // 2. Canvas 전용 전역 변수가 있는지 안전하게 확인
+      const config = (window).__firebase_config;
+      if (config) return JSON.parse(config);
     }
   } catch (e) {
-    console.warn("Firebase config check bypassed for build environment.");
+    // 빌드 시점에는 경고를 무시합니다.
   }
-  // 빌드 시 에러를 방지하기 위한 임시 스키마 (배포 시 환경변수나 실제 값을 넣으세요)
+  // 3. 대체값 (빌드 통과용 더미 데이터)
   return { 
-    apiKey: "dummy-key", 
+    apiKey: "dummy", 
     authDomain: "dummy.firebaseapp.com", 
-    projectId: "dummy-id", 
+    projectId: "dummy", 
     storageBucket: "dummy.appspot.com", 
-    messagingSenderId: "000000", 
+    messagingSenderId: "000", 
     appId: "0:0:web:0" 
   };
 };
 
 const FIREBASE_CONFIG = getSafeConfig();
-
-// Firebase 초기화 (중복 초기화 방지)
 const app = getApps().length === 0 ? initializeApp(FIREBASE_CONFIG) : getApps()[0];
 const auth = getAuth(app);
-// db 변수는 현재 코드 내에서 사용되지 않으므로, ESLint 에러 방지를 위해 정의만 하고 사용하지 않는다면 주석 처리하거나 활용해야 합니다.
-// const db = getFirestore(app); 
 
 const CHART_COLORS = ['#00f2ff', '#ff00e5', '#7000ff', '#10b981', '#f59e0b', '#3b82f6'];
 
@@ -89,7 +86,6 @@ const RECENT_CHANGES = [
 ];
 
 // --- Components ---
-
 const BackgroundEffect = () => (
   <div className="fixed inset-0 z-[-1] overflow-hidden bg-[#050b18]">
     <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[#7000ff]/20 blur-[120px] rounded-full animate-pulse" />
@@ -158,8 +154,6 @@ const StatBox = ({ label, value, change, icon: Icon, color }) => (
   </div>
 );
 
-// --- Main Application ---
-
 export default function App() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -168,26 +162,24 @@ export default function App() {
   useEffect(() => {
     const initAuth = async () => {
       try {
-        // window 객체 안전 확인 루틴
-        const hasToken = typeof window !== 'undefined' && window.__initial_auth_token;
-        
-        if (hasToken) {
-          await signInWithCustomToken(auth, window.__initial_auth_token);
-        } else if (FIREBASE_CONFIG.apiKey !== "dummy-key") {
-          await signInAnonymously(auth);
-        } else {
-          // 로컬 환경이나 더미 데이터 환경에서는 로딩 해제
-          setLoading(false);
+        if (typeof window !== 'undefined') {
+          const token = (window).__initial_auth_token;
+          if (token) {
+            await signInWithCustomToken(auth, token);
+          } else if (FIREBASE_CONFIG.apiKey !== "dummy") {
+            await signInAnonymously(auth);
+          }
         }
       } catch (err) {
-        console.warn("Auth initialization skipped or failed:", err.message);
+        console.warn("Auth status:", err.message);
+      } finally {
         setLoading(false);
       }
     };
     initAuth();
     const unsubscribe = onAuthStateChanged(auth, (currUser) => {
-      setLoading(false);
       setIsAdmin(!!currUser); 
+      setLoading(false);
     });
     return () => unsubscribe();
   }, []);
