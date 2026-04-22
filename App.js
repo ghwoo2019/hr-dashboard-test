@@ -30,17 +30,14 @@ import {
   signInWithCustomToken,
   signOut
 } from 'firebase/auth';
-import { 
-  getFirestore
-} from 'firebase/firestore';
 
 // --- Configuration & Constants ---
 // 외부 배포 환경에서 ReferenceError를 방지하기 위해 window 객체 여부를 먼저 확인합니다.
 const getSafeConfig = () => {
   try {
     // window 객체가 있고 그 안에 __firebase_config가 정의되어 있는지 확인
-    if (typeof window !== 'undefined' && typeof __firebase_config !== 'undefined' && __firebase_config) {
-      return JSON.parse(__firebase_config);
+    if (typeof window !== 'undefined' && window.__firebase_config) {
+      return JSON.parse(window.__firebase_config);
     }
   } catch (e) {
     console.warn("Firebase config check bypassed for build environment.");
@@ -164,7 +161,6 @@ const StatBox = ({ label, value, change, icon: Icon, color }) => (
 // --- Main Application ---
 
 export default function App() {
-  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isAdmin, setIsAdmin] = useState(false);
@@ -173,7 +169,7 @@ export default function App() {
     const initAuth = async () => {
       try {
         // window 객체 안전 확인 루틴
-        const hasToken = typeof window !== 'undefined' && typeof __initial_auth_token !== 'undefined' && __initial_auth_token;
+        const hasToken = typeof window !== 'undefined' && window.__initial_auth_token;
         
         if (hasToken) {
           await signInWithCustomToken(auth, window.__initial_auth_token);
@@ -190,9 +186,8 @@ export default function App() {
     };
     initAuth();
     const unsubscribe = onAuthStateChanged(auth, (currUser) => {
-      setUser(currUser);
       setLoading(false);
-      setIsAdmin(true); 
+      setIsAdmin(!!currUser); 
     });
     return () => unsubscribe();
   }, []);
